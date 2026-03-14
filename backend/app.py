@@ -5,11 +5,12 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+# Home route (fixes 404)
 @app.route("/")
 def home():
     return "AirAware Pollution Tracker API is running!"
 
-# AQI using city name
+# Get AQI by city
 @app.route('/get_aqi/<city>')
 def get_aqi(city):
 
@@ -18,16 +19,14 @@ def get_aqi(city):
     data = response.json()
 
     if data["status"] == "ok":
-        aqi = data["data"]["aqi"]
         return jsonify({
             "city": city,
-            "aqi": aqi
+            "aqi": data["data"]["aqi"]
         })
 
     return jsonify({"error": "Data not available"})
 
-
-# AQI using latitude & longitude (for current location)
+# Get AQI using latitude & longitude
 @app.route('/get_aqi_location/<lat>/<lon>')
 def get_aqi_location(lat, lon):
 
@@ -36,14 +35,13 @@ def get_aqi_location(lat, lon):
     data = response.json()
 
     if data["status"] == "ok":
-        aqi = data["data"]["aqi"]
         return jsonify({
             "location": f"{lat},{lon}",
-            "aqi": aqi
+            "aqi": data["data"]["aqi"]
         })
 
     return jsonify({"error": "Location AQI not available"})
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000)
