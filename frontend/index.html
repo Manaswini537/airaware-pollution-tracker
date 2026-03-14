@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<title>Air Pollution Exposure Tracker</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#e8f5e9;
+text-align:center;
+}
+
+h1{
+color:#2e7d32;
+}
+
+input{
+padding:10px;
+margin:10px;
+border-radius:5px;
+border:1px solid gray;
+}
+
+button{
+padding:10px 20px;
+background:#2e7d32;
+color:white;
+border:none;
+border-radius:5px;
+cursor:pointer;
+}
+
+#map{
+height:400px;
+width:80%;
+margin:20px auto;
+}
+
+#result{
+font-size:20px;
+font-weight:bold;
+margin:20px;
+}
+
+canvas{
+max-width:600px;
+margin:auto;
+}
+
+#infoBox{
+background:white;
+padding:15px;
+margin:30px auto;
+width:70%;
+border-radius:10px;
+box-shadow:0px 0px 10px rgba(0,0,0,0.1);
+text-align:left;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Air Pollution Exposure Tracker</h1>
+
+<input id="city" placeholder="Enter city">
+
+<button onclick="getAQI()">Check AQI</button>
+
+<h2 id="result"></h2>
+<p id="recommendation"></p>
+
+<div id="map"></div>
+
+<canvas id="aqiChart" width="400" height="200"></canvas>
+
+<h3>Travel Route Pollution Advisory</h3>
+
+<label>Start Location</label><br>
+
+<input type="radio" name="startOption" value="current" checked>
+Use Current Location
+
+<input type="radio" name="startOption" value="manual">
+Enter Manually
+
+<br><br>
+
+<input id="startCity" placeholder="Enter Start City">
+
+<br><br>
+
+<label>Destination City</label><br>
+
+<input id="endCity" placeholder="Enter Destination City">
+
+<br><br>
+
+<button onclick="checkRoute()">Check Travel Pollution</button>
+
+<p id="routeAdvice"></p>
+
+<div id="infoBox">
+
+<h3>About AQI and Exposure Graph</h3>
+
+<p><strong>AQI (Air Quality Index)</strong> tells how polluted the air is in a city. Lower AQI means cleaner air.</p>
+
+<p>The <strong>Exposure Score</strong> is calculated based on how long you stay outside.</p>
+
+<p>The graph compares AQI with your estimated pollution exposure.</p>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+let map = L.map('map').setView([20.5937,78.9629],5)
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+attribution:'© OpenStreetMap'
+}).addTo(map)
+
+navigator.geolocation.getCurrentPosition(function(position){
+
+let lat=position.coords.latitude
+let lon=position.coords.longitude
+
+map.setView([lat,lon],10)
+
+L.marker([lat,lon]).addTo(map)
+.bindPopup("Your Current Location")
+.openPopup()
+
+})
+
+let pollutionChart
+
+async function getAQI(){
+
+let city=document.getElementById("city").value
+
+let response=await fetch(`http://127.0.0.1:5000/get_aqi/${city}`)
+let data=await response.json()
+
+let geoResponse=await fetch(`https://nominatim.openstreetmap.org/search?city=${city}&format=json`)
+let geoData=await geoResponse.json()
+
+let lat=geoData[0].lat
+let lon=geoData[0].lon
+
+map.setView([lat,lon],10)
+
+L.marker([lat,lon]).addTo(map)
+.bindPopup(`${city} AQI: ${data.aqi}`)
+.openPopup()
+
+let hours=prompt("How many hours were you outside today?")
+
+let exposure=data.aqi*hours
+
+let ctx=document.getElementById("aqiChart").getContext("2d")
+
+if(pollutionChart){
+pollutionChart.destroy()
+}
+
+pollutionChart=new Chart(ctx,{
+type:"line",
+data:{
+labels:["AQI","Exposure"],
+datasets:[{
+label:"Pollution Impact",
+data:[data.aqi,exposure]
+}]
+}
+})
+
+let risk="Low"
+let color="green"
+
+if(exposure>300 && exposure<=800){
+risk="Moderate Exposure"
+color="orange"
+}
+
+else if(exposure>800 && exposure<=1500){
+risk="High Exposure"
+color="red"
+}
+
+else if(exposure>1500){
+risk="Extreme Exposure"
+color="purple"
+}
+
+let recommendation="Safe air quality."
+
+if(exposure>300 && exposure<=800){
+recommendation="⚠ Consider wearing a mask."
+}
+
+else if(exposure>800 && exposure<=1500){
+recommendation="⚠ Wear N95 mask."
+}
+
+else if(exposure>1500){
+recommendation="⚠ Avoid outdoor exposure."
+}
+
+let resultText=`AQI: ${data.aqi} | Exposure Score: ${exposure} | Risk Level: ${risk}`
+
+let resultElement=document.getElementById("result")
+
+resultElement.innerText=resultText
+resultElement.style.color=color
+
+document.getElementById("recommendation").innerText=recommendation
+
+}
+
+async function checkRoute(){
+
+let startOption=document.querySelector('input[name="startOption"]:checked').value
+let endCity=document.getElementById("endCity").value
+
+if(endCity===""){
+document.getElementById("routeAdvice").innerText="Please enter destination city"
+return
+}
+
+let startAQI
+
+try{
+
+if(startOption==="current"){
+
+let position=await new Promise((resolve,reject)=>{
+navigator.geolocation.getCurrentPosition(resolve,reject)
+})
+
+let lat=position.coords.latitude
+let lon=position.coords.longitude
+
+let response=await fetch(`http://127.0.0.1:5000/get_aqi_location/${lat}/${lon}`)
+let data=await response.json()
+
+startAQI=data.aqi
+
+}else{
+
+let startCity=document.getElementById("startCity").value
+
+if(startCity===""){
+document.getElementById("routeAdvice").innerText="Please enter start city"
+return
+}
+
+let response=await fetch(`http://127.0.0.1:5000/get_aqi/${startCity}`)
+let data=await response.json()
+
+startAQI=data.aqi
+
+}
+
+let endResponse=await fetch(`http://127.0.0.1:5000/get_aqi/${endCity}`)
+let endData=await endResponse.json()
+
+let endAQI=endData.aqi
+
+let advice="Air quality is good for travel."
+
+if(startAQI>150 || endAQI>150){
+advice="⚠ Pollution is high. Wear a mask."
+}
+
+if(startAQI>200 || endAQI>200){
+advice="⚠ Travel early morning (5AM–7AM)."
+}
+
+if(startAQI>300 || endAQI>300){
+advice="🚨 Avoid travel unless necessary."
+}
+
+document.getElementById("routeAdvice").innerText=
+`Start AQI: ${startAQI}
+Destination AQI: ${endAQI}
+
+Travel Advice:
+${advice}`
+
+}catch(error){
+
+document.getElementById("routeAdvice").innerText="Error fetching pollution data."
+
+}
+
+}
+
+document.querySelectorAll('input[name="startOption"]').forEach(radio=>{
+radio.addEventListener("change",()=>{
+let startInput=document.getElementById("startCity")
+
+if(radio.value==="current" && radio.checked){
+startInput.disabled=true
+}else{
+startInput.disabled=false
+}
+
+})
+})
+
+document.getElementById("startCity").disabled=true
+
+</script>
+
+</body>
+
+</html>
