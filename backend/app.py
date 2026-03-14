@@ -5,6 +5,10 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+@app.route("/")
+def home():
+    return "AirAware Pollution Tracker API is running!"
+
 # AQI using city name
 @app.route('/get_aqi/<city>')
 def get_aqi(city):
