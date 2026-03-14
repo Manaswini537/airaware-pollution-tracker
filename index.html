@@ -78,37 +78,19 @@ text-align:left;
 <button onclick="getAQI()">Check AQI</button>
 
 <h2 id="result"></h2>
+
+<h3>AQI Category</h3>
+<p id="category"></p>
+
+<h3>Health Recommendation</h3>
+<p id="healthAdvice"></p>
 <p id="recommendation"></p>
 
 <div id="map"></div>
 
 <canvas id="aqiChart" width="400" height="200"></canvas>
 
-<h3>Travel Route Pollution Advisory</h3>
 
-<label>Start Location</label><br>
-
-<input type="radio" name="startOption" value="current" checked>
-Use Current Location
-
-<input type="radio" name="startOption" value="manual">
-Enter Manually
-
-<br><br>
-
-<input id="startCity" placeholder="Enter Start City">
-
-<br><br>
-
-<label>Destination City</label><br>
-
-<input id="endCity" placeholder="Enter Destination City">
-
-<br><br>
-
-<button onclick="checkRoute()">Check Travel Pollution</button>
-
-<p id="routeAdvice"></p>
 
 <div id="infoBox">
 
@@ -154,6 +136,13 @@ let city=document.getElementById("city").value
 let response=await fetch(`http://127.0.0.1:5000/get_aqi/${city}`)
 let data=await response.json()
 
+if(!data.aqi){
+document.getElementById("result").innerText="AQI data not available for this location. Try a nearby major city."
+document.getElementById("category").innerText=""
+document.getElementById("healthAdvice").innerText=""
+return
+}
+
 let geoResponse=await fetch(`https://nominatim.openstreetmap.org/search?city=${city}&format=json`)
 let geoData=await geoResponse.json()
 
@@ -167,6 +156,44 @@ L.marker([lat,lon]).addTo(map)
 .openPopup()
 
 let hours=prompt("How many hours were you outside today?")
+
+let aqi = data.aqi
+
+let category=""
+let advice=""
+
+if(aqi<=50){
+category="Good"
+advice="Air quality is good. Safe for outdoor activities."
+}
+
+else if(aqi<=100){
+category="Moderate"
+advice="Air quality is acceptable. Sensitive individuals should limit outdoor exposure."
+}
+
+else if(aqi<=150){
+category="Unhealthy for Sensitive Groups"
+advice="Children, elderly and people with breathing issues should reduce outdoor activities."
+}
+
+else if(aqi<=200){
+category="Unhealthy"
+advice="Limit outdoor exertion and consider wearing a mask."
+}
+
+else if(aqi<=300){
+category="Very Unhealthy"
+advice="Avoid outdoor activities and stay indoors if possible."
+}
+
+else{
+category="Hazardous"
+advice="Health alert. Everyone should avoid outdoor exposure."
+}
+
+document.getElementById("category").innerText=category
+document.getElementById("healthAdvice").innerText=advice
 
 let exposure=data.aqi*hours
 
@@ -230,87 +257,10 @@ document.getElementById("recommendation").innerText=recommendation
 
 }
 
-async function checkRoute(){
 
-let startOption=document.querySelector('input[name="startOption"]:checked').value
-let endCity=document.getElementById("endCity").value
 
-if(endCity===""){
-document.getElementById("routeAdvice").innerText="Please enter destination city"
-return
-}
 
-let startAQI
 
-try{
-
-if(startOption==="current"){
-
-let position=await new Promise((resolve,reject)=>{
-navigator.geolocation.getCurrentPosition(resolve,reject)
-})
-
-let lat=position.coords.latitude
-let lon=position.coords.longitude
-
-let response=await fetch(`http://127.0.0.1:5000/get_aqi_location/${lat}/${lon}`)
-let data=await response.json()
-
-startAQI=data.aqi
-
-}else{
-
-let startCity=document.getElementById("startCity").value
-
-if(startCity===""){
-document.getElementById("routeAdvice").innerText="Please enter start city"
-return
-}
-
-let response=await fetch(`http://127.0.0.1:5000/get_aqi/${startCity}`)
-let data=await response.json()
-
-startAQI=data.aqi
-
-}
-
-let endResponse=await fetch(`http://127.0.0.1:5000/get_aqi/${endCity}`)
-let endData=await endResponse.json()
-
-let endAQI=endData.aqi
-
-let advice="Air quality is good for travel."
-
-if(startAQI>150 || endAQI>150){
-advice="⚠ Pollution is high. Wear a mask."
-}
-
-if(startAQI>200 || endAQI>200){
-advice="⚠ Travel early morning (5AM–7AM)."
-}
-
-if(startAQI>300 || endAQI>300){
-advice="🚨 Avoid travel unless necessary."
-}
-
-document.getElementById("routeAdvice").innerText=
-`Start AQI: ${startAQI}
-Destination AQI: ${endAQI}
-
-Travel Advice:
-${advice}`
-
-}catch(error){
-
-document.getElementById("routeAdvice").innerText="Error fetching pollution data."
-
-}
-
-}
-
-document.querySelectorAll('input[name="startOption"]').forEach(radio=>{
-radio.addEventListener("change",()=>{
-let startInput=document.getElementById("startCity")
 
 if(radio.value==="current" && radio.checked){
 startInput.disabled=true
@@ -318,8 +268,6 @@ startInput.disabled=true
 startInput.disabled=false
 }
 
-})
-})
 
 document.getElementById("startCity").disabled=true
 
