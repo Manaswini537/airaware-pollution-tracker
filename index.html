@@ -133,7 +133,7 @@ async function getAQI(){
 
 let city=document.getElementById("city").value
 
-let response=await fetch(`http://127.0.0.1:5000/get_aqi/${city}`)
+let response=await fetch('https://airaware-pollution-tracker.onrender.com')
 let data=await response.json()
 
 if(!data.aqi){
